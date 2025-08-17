@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saltwater Skipper — A Tiny Fishing Game</title>
+<style>
+  :root{
+    --bg:#07131f;--panel:#0e1c2c;--card:#102335;--text:#e6f0ff;--muted:#9fb3cc;
+    --accent:#22d3ee;--accent2:#34d399;--warn:#fbbf24;--danger:#ef4444;--border:#1a3a57;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#06101a 0%,#091a2a 100%);color:var(--text);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px 16px 32px;display:grid;gap:16px;grid-template-columns:340px 1fr}
+  header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .badge{background:rgba(34,211,238,.15);border:1px solid rgba(34,211,238,.35);padding:4px 10px;border-radius:999px;color:#a5f3fc;font-weight:700;font-size:12px;letter-spacing:.3px}
+  .hud{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:12px;background:rgba(16,35,53,.8);border:1px solid var(--border)}
+  .stat b{font-size:18px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.35);overflow:hidden}
+  .section{padding:14px 16px;border-bottom:1px solid #163550}
+  .section:last-child{border-bottom:0}
+  .btn{appearance:none;border:0;border-radius:12px;padding:10px 12px;background:#1a2f45;color:var(--text);font-weight:700;cursor:pointer;transition:.15s transform,.2s background,.2s box-shadow}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(0,0,0,.25)}
+  .btn:active{transform:translateY(0)}
+  .btn.primary{background:linear-gradient(180deg,#22d3ee,#06b6d4);color:#042026}
+  .btn.green{background:linear-gradient(180deg,#34d399,#10b981);color:#02221b}
+  .btn.warn{background:linear-gradient(180deg,#fde047,#f59e0b);color:#3b2a04}
+  .btn.danger{background:linear-gradient(180deg,#fca5a5,#ef4444);color:#2a0a0a}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px}
+  h2,h3{margin:.4rem 0 .6rem}
+  .muted{color:var(--muted);font-size:13px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px solid #173550;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:0}
+  .log{height:140px;overflow:auto;font-size:13px;background:#0b1a29;border-radius:12px;border:1px solid #173550;padding:8px}
+  .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  progress{width:100%;height:16px;border-radius:999px;overflow:hidden}
+  progress::-webkit-progress-bar{background:#0b1a29;border:1px solid #173550;border-radius:999px}
+  progress::-webkit-progress-value{background:linear-gradient(90deg,#22d3ee,#34d399)}
+  .slider{position:relative;height:18px;background:#0b1a29;border:1px solid #173550;border-radius:999px;overflow:hidden}
+  .slider .safe{position:absolute;top:0;bottom:0;background:rgba(250,204,21,.35)}
+  .slider .pin{position:absolute;top:0;bottom:0;width:8px;background:#22d3ee;box-shadow:0 0 10px #22d3ee}
+  .center{display:flex;justify-content:center;align-items:center}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0f1f30;border:1px solid #173550;padding:10px 14px;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.35);opacity:0;transition:.25s opacity}
+  .toast.show{opacity:1}
+  .footer{grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px}
+  .mini{padding:6px 8px;border-radius:10px;font-size:12px}
+  .loc-btn.selected{outline:2px solid #22d3ee}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title"><span class="badge">Web Mini-Game</span><h1 style="margin:0 0 0 10px">Saltwater Skipper</h1></div>
+      <div class="hud">
+        <div class="stat"><span>Cash</span><b id="cash">$0</b></div>
+        <div class="stat"><span>Bait</span><b id="bait">0</b></div>
+        <div class="stat"><span>Fuel</span><b id="fuel">0</b></div>
+        <div class="stat"><span>Cooler</span><b id="cooler">0/0</b></div>
+        <div class="stat"><span>Time</span><b id="clock">06:00</b></div>
+        <div class="stat"><span>Weather</span><b id="weather">Calm</b></div>
+      </div>
+    </header>
+
+    <aside class="panel">
+      <div class="section">
+        <h3>Where to Fish</h3>
+        <div class="flex" id="locations"></div>
+        <p class="muted">Different spots have different fish and difficulty. Travelling offshore uses fuel.</p>
+      </div>
+
+      <div class="section">
+        <h3>Actions</h3>
+        <div class="flex">
+          <button id="castBtn" class="btn primary">Cast Line (1 bait)</button>
+          <button id="dockBtn" class="btn">Return to Dock</button>
+        </div>
+        <div id="fightUI" class="card" style="display:none;margin-top:10px">
+          <h3>Reel Mini‑game</h3>
+          <div class="muted">Hold <b>Space</b> or <b>Mouse</b> to reel. Keep the blue pin inside the golden safe zone. Fill the catch bar to 100%.</div>
+          <div style="margin:10px 0">
+            <label class="muted">Line Tension</label>
+            <div class="slider" id="tensionBar" style="margin-top:4px">
+              <div class="safe" id="safeZone"></div>
+              <div class="pin" id="pin" style="left:50%"></div>
+            </div>
+          </div>
+          <div>
+            <label class="muted">Catch Progress</label>
+            <progress id="progress" value="0" max="100"></progress>
+          </div>
+          <div class="flex" style="margin-top:8px">
+            <div class="stat"><span>Fish</span><b id="fightFish">-</b></div>
+            <div class="stat"><span>Weight</span><b id="fightWt">-</b></div>
+            <div class="stat"><span>Break Risk</span><b id="fightRisk">-</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Shop @ Dock</h3>
+        <div class="flex">
+          <button class="btn green" id="buyBait">Buy Bait x10 ($20)</button>
+          <button class="btn green" id="buyFuel">Buy Fuel x20 ($30)</button>
+          <button class="btn green" id="upgradeRod">Upgrade Rod ($100)</button>
+          <button class="btn green" id="upgradeCooler">Cooler +5 ($60)</button>
+        </div>
+        <p class="muted">Rod upgrades widen the safe zone. Cooler increases capacity.</p>
+      </div>
+
+      <div class="section">
+        <h3>Sell Catch</h3>
+        <div class="flex">
+          <button class="btn warn" id="sellAll">Sell All Fish</button>
+          <button class="btn" id="save">Save</button>
+          <button class="btn danger" id="reset">Reset</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="grid panel">
+      <section class="card">
+        <h3>Inventory (Cooler)</h3>
+        <table id="invTbl">
+          <thead><tr><th>Species</th><th>Weight</th><th>Value</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+      <section class="card">
+        <h3>Activity Log</h3>
+        <div id="log" class="log"></div>
+      </section>
+    </main>
+
+    <div class="footer">Single-file game — runs offline. Tips: calm mornings have better bites; storms mean stronger fish.</div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  // ===== Data =====
+  const spots = [
+    {id:'pier', name:'Pier (Shore)', fuel:0, bite:1.0, fish:[
+      {sp:'Mackerel', min:0.5, max:2.0, val:6, diff:0.8, rare:0.55},
+      {sp:'Sea Bass', min:1.0, max:4.0, val:10, diff:1.0, rare:0.35},
+      {sp:'Flounder', min:0.7, max:2.5, val:8, diff:0.9, rare:0.25}
+    ]},
+    {id:'reef', name:'Reef', fuel:4, bite:1.2, fish:[
+      {sp:'Snapper', min:1.0, max:6.0, val:14, diff:1.2, rare:0.4},
+      {sp:'Grouper', min:2.0, max:10.0, val:18, diff:1.5, rare:0.3},
+      {sp:'Barracuda', min:3.0, max:8.0, val:22, diff:1.6, rare:0.2}
+    ]},
+    {id:'off', name:'Offshore', fuel:10, bite:1.4, fish:[
+      {sp:'Mahi‑Mahi', min:5.0, max:18.0, val:28, diff:1.9, rare:0.35},
+      {sp:'Tuna', min:12.0, max:80.0, val:40, diff:2.3, rare:0.25},
+      {sp:'Marlin', min:30.0, max:250.0, val:90, diff:2.8, rare:0.08}
+    ]}
+  ];
+
+  const weatherTypes = [
+    {w:'Calm', bite:1.1, tug:0.9},
+    {w:'Breezy', bite:1.0, tug:1.0},
+    {w:'Choppy', bite:0.9, tug:1.2},
+    {w:'Stormy', bite:0.8, tug:1.4},
+  ];
+
+  const state = {
+    cash: 100,
+    bait: 10,
+    fuel: 30,
+    rodLv: 1,
+    coolerCap: 10,
+    loc: 'pier',
+    clock: 6*60, // minutes since 0:00
+    weather: 0,
+    inv: [],
+    fight: null // {species, weight, strength, pin, safeL, safeR, progress}
+  };
+
+  // ===== Elements =====
+  const $ = s=>document.querySelector(s);
+  const cashEl=$('#cash'), baitEl=$('#bait'), fuelEl=$('#fuel'), coolerEl=$('#cooler'), clockEl=$('#clock'), weatherEl=$('#weather');
+  const locationsDiv = $('#locations'), logEl = $('#log'), invBody = $('#invTbl tbody');
+  const castBtn = $('#castBtn'), dockBtn = $('#dockBtn');
+  const fightBox = $('#fightUI'), pinEl=$('#pin'), safeEl=$('#safeZone'), progEl=$('#progress'), fishName=$('#fightFish'), fishWt=$('#fightWt'), fightRisk=$('#fightRisk');
+  const toast = document.querySelector('#toast');
+
+  // ===== Utils =====
+  const fmtUSD = n=>'$'+n.toFixed(2);
+  const rnd = (a,b)=>Math.random()*(b-a)+a;
+  const choice = (arr)=>arr[Math.floor(Math.random()*arr.length)];
+  const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+
+  function updateHUD(){
+    cashEl.textContent = fmtUSD(state.cash);
+    baitEl.textContent = state.bait;
+    fuelEl.textContent = state.fuel;
+    coolerEl.textContent = state.inv.length + '/' + state.coolerCap;
+    const h = Math.floor(state.clock/60)%24, m = state.clock%60;
+    clockEl.textContent = (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+    weatherEl.textContent = weatherTypes[state.weather].w;
+  }
+
+  function log(msg){
+    const time = clockEl.textContent;
+    const p = document.createElement('div'); p.textContent = '['+time+'] '+msg;
+    logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function toastMsg(msg){
+    toast.textContent = msg; toast.classList.add('show');
+    setTimeout(()=>toast.classList.remove('show'), 1300);
+  }
+
+  function save(){ localStorage.setItem('salt_skpr', JSON.stringify(state)); toastMsg('Saved'); }
+  function load(){
+    const raw = localStorage.getItem('salt_skpr'); if(!raw) return;
+    try{
+      const s = JSON.parse(raw); Object.assign(state, s);
+    }catch(e){ console.warn('load failed', e); }
+  }
+
+  // ===== Locations UI =====
+  function renderLocations(){
+    locationsDiv.innerHTML='';
+    spots.forEach(s=>{
+      const b = document.createElement('button');
+      b.className='btn mini loc-btn'+(state.loc===s.id?' selected':'');
+      b.textContent = s.name + (s.fuel?` (Fuel ${s.fuel})`:'');
+      b.addEventListener('click',()=>travel(s.id));
+      locationsDiv.appendChild(b);
+    });
+  }
+
+  function travel(id){
+    if(state.loc===id) return;
+    const s = spots.find(x=>x.id===id);
+    if(s.fuel>0){
+      if(state.fuel < s.fuel) return toastMsg('Not enough fuel');
+      state.fuel -= s.fuel;
+    }
+    state.loc = id; advanceMinutes(15);
+    renderLocations(); updateHUD();
+    log('Traveled to '+s.name+'.');
+  }
+
+  // ===== Time & Weather =====
+  function advanceMinutes(n){
+    state.clock += n;
+    if(state.clock>=24*60){ state.clock -= 24*60; // next day
+      // new daily weather
+      state.weather = Math.floor(Math.random()*weatherTypes.length);
+      log('A new day dawns. Weather: '+weatherTypes[state.weather].w);
+    }
+  }
+
+  // ===== Inventory =====
+  function renderInv(){
+    invBody.innerHTML='';
+    state.inv.forEach(f=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${f.sp}</td><td>${f.wt.toFixed(1)} kg</td><td>${fmtUSD(f.value)}</td>`;
+      invBody.appendChild(tr);
+    });
+  }
+
+  function sellAll(){
+    let total=0; state.inv.forEach(f=>total+=f.value);
+    state.inv = []; state.cash += total; renderInv(); updateHUD();
+    log('Sold catch for '+fmtUSD(total)+'.');
+  }
+
+  // ===== Shop =====
+  $('#buyBait').addEventListener('click', ()=>{
+    if(state.cash<20) return toastMsg('Need $20');
+    state.cash-=20; state.bait+=10; updateHUD(); log('Bought 10 bait.');
+  });
+  $('#buyFuel').addEventListener('click', ()=>{
+    if(state.cash<30) return toastMsg('Need $30');
+    state.cash-=30; state.fuel+=20; updateHUD(); log('Refueled 20.');
+  });
+  $('#upgradeRod').addEventListener('click', ()=>{
+    const cost = 100*state.rodLv;
+    if(state.cash<cost) return toastMsg('Need '+fmtUSD(cost));
+    state.cash-=cost; state.rodLv++; updateHUD(); log('Upgraded rod to Lv.'+state.rodLv+' (wider safe zone).');
+  });
+  $('#upgradeCooler').addEventListener('click', ()=>{
+    if(state.cash<60) return toastMsg('Need $60');
+    state.cash-=60; state.coolerCap+=5; updateHUD(); log('Cooler capacity increased.');
+  });
+
+  // ===== Casting & Fight =====
+  castBtn.addEventListener('click', castLine);
+  dockBtn.addEventListener('click', ()=>{ state.loc='pier'; renderLocations(); log('Returned to dock.'); });
+
+  function castLine(){
+    if(state.bait<=0) return toastMsg('Out of bait');
+    if(state.inv.length>=state.coolerCap) return toastMsg('Cooler full');
+    state.bait--; updateHUD();
+    advanceMinutes(5);
+    const spot = spots.find(x=>x.id===state.loc);
+    const weather = weatherTypes[state.weather];
+    const dayBoost = (state.clock%(24*60) >= 5*60 && state.clock% (24*60) <= 10*60)?1.2:1.0; // morning bite
+    const biteChance = Math.min(0.95, 0.45 * spot.bite * weather.bite * dayBoost);
+    if(Math.random() > biteChance){ log('No bite... try again.'); return; }
+
+    // pick fish by weighted rarity
+    const pool = spot.fish.slice().sort(()=>Math.random()-0.5);
+    let pick = pool[0];
+    if(Math.random()<0.35 && pool[1]) pick = pool[1];
+    if(Math.random()<0.15 && pool[2]) pick = pool[2];
+    const wt = rnd(pick.min, pick.max);
+    startFight(pick, wt, spot, weather);
+  }
+
+  function startFight(f, weight, spot, weather){
+    const strength = f.diff * weather.tug * (1 + weight/ (f.max*1.5));
+    // safe zone width grows with rod level
+    const width = clamp(22 + state.rodLv*6 - strength*4, 12, 40); // percent width
+    const center = rnd(35,65);
+    state.fight = {
+      species:f.sp, weight, strength,
+      pin:50, safeL:center - width/2, safeR:center + width/2,
+      progress:0
+    };
+    fightBox.style.display='block';
+    updateFightUI();
+    log(`Hooked a ${f.sp} (${weight.toFixed(1)} kg)!`);
+    // start loop
+    fightLoop();
+  }
+
+  let fightRAF=null, holding=false;
+  window.addEventListener('mousedown', ()=>holding=true);
+  window.addEventListener('mouseup', ()=>holding=false);
+  window.addEventListener('keydown', (e)=>{ if(e.code==='Space') {holding=true; e.preventDefault();} });
+  window.addEventListener('keyup', (e)=>{ if(e.code==='Space') holding=false; });
+
+  function updateFightUI(){
+    const f = state.fight; if(!f) return;
+    const bar = $('#tensionBar');
+    safeEl.style.left = f.safeL+'%';
+    safeEl.style.right = (100-f.safeR)+'%';
+    pinEl.style.left = f.pin+'%';
+    fishName.textContent = f.species;
+    fishWt.textContent = f.weight.toFixed(1)+' kg';
+    const risk = Math.abs(((f.pin < f.safeL ? f.safeL-f.pin : (f.pin>f.safeR? f.pin-f.safeR : 0))));
+    fightRisk.textContent = (risk>20?'HIGH':risk>10?'MED':'LOW');
+    progEl.value = f.progress;
+  }
+
+  function fightLoop(){
+    if(!state.fight){ cancelAnimationFrame(fightRAF); return; }
+    const f = state.fight;
+    // fish tugs pin around
+    const tug = (Math.random()*2-1) * f.strength * 0.8;
+    f.pin = clamp(f.pin + tug + (holding? 1.8 : -0.6), 0, 100);
+    // progress if inside safe zone, else lose
+    if(f.pin>=f.safeL && f.pin<=f.safeR){
+      f.progress += 0.9 + state.rodLv*0.1;
+    } else {
+      f.progress -= 0.6 + f.strength*0.2;
+    }
+    f.progress = clamp(f.progress, 0, 100);
+    // random drift of safe zone (fish moves)
+    const drift = (Math.random()*2-1) * (0.2 + f.strength*0.1);
+    f.safeL = clamp(f.safeL + drift, 5, 70);
+    f.safeR = clamp(f.safeL + (f.safeR - f.safeL), f.safeL+8, 95);
+
+    // line break chance if way out
+    const out = (f.pin < f.safeL-8) || (f.pin > f.safeR+8);
+    if(out && Math.random() < 0.02 * f.strength){ loseFish('The line snapped!'); return; }
+
+    if(f.progress>=100){ catchFish(); return; }
+    updateFightUI();
+    fightRAF = requestAnimationFrame(fightLoop);
+  }
+
+  function loseFish(msg){
+    fightBox.style.display='none';
+    state.fight=null;
+    log(msg||'The fish got away.');
+  }
+  function catchFish(){
+    const f = state.fight; fightBox.style.display='none'; state.fight=null;
+    const price = f.weight * (10 + f.strength*8); // simple pricing
+    if(state.inv.length>=state.coolerCap){ log('Cooler full! Released the fish.'); return; }
+    state.inv.push({sp:f.species, wt:f.weight, value:price});
+    renderInv(); updateHUD();
+    log(`Landed a ${f.species} (${f.weight.toFixed(1)} kg) worth ${fmtUSD(price)}.`);
+  }
+
+  // ===== Sell/Save/Reset =====
+  $('#sellAll').addEventListener('click', sellAll);
+  $('#save').addEventListener('click', save);
+  $('#reset').addEventListener('click', ()=>{ localStorage.removeItem('salt_skpr'); location.reload(); });
+
+  // ===== Daytime tick =====
+  setInterval(()=>{
+    advanceMinutes(5);
+    updateHUD();
+    // occasional weather change mid‑day (small chance)
+    if(Math.random()<0.06){ state.weather = Math.floor(Math.random()*weatherTypes.length); log('Weather shifted to '+weatherTypes[state.weather].w+'.'); }
+  }, 6000);
+
+  // ===== Boot =====
+  function init(){
+    load();
+    // build location buttons
+    renderLocations();
+    updateHUD();
+    renderInv();
+    log('Welcome to Saltwater Skipper. Buy bait & fuel at the dock, travel to a spot, then cast!');
+  }
+  init();
+})();
+</script>
+</body>
+</html>
